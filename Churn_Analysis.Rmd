@@ -7,6 +7,10 @@ output:
   word_document: default
 ---
 
+```{r global_options}
+knitr::opts_chunk$set(fig.path='Figs/')
+```
+
 # Load Necessary Libraries
 
 ```{r include=FALSE}
