@@ -1,0 +1,119 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+# Load Necessary Libraries
+
+```{r include=FALSE}
+library(xgboost)
+library(glmnet)
+library(randomForest)
+library(caret)
+library(tidyverse)
+
+```
+
+# Import Data
+
+```{r}
+churn <- read.csv("Churn_Modelling.csv", header = T)
+
+str(churn)
+
+```
+
+```{r message=FALSE, warning=FALSE}
+## Remove unnecessary columns
+
+churn <- churn[,-c(1,2,3)]
+
+
+## Convert variables to appropriate format
+
+churn$Geography <- as.factor(churn$Geography)
+churn$Gender <- as.factor(churn$Gender)
+churn$HasCrCard <- as.factor(churn$HasCrCard)
+churn$IsActiveMember <- as.factor(churn$IsActiveMember)
+churn$Exited <- as.factor(churn$Exited)
+
+## Convert gender and geography to numeric factors
+
+levels(churn$Gender)[1] <- 0  ## Female
+levels(churn$Gender)[2] <- 1  ## Male
+
+levels(churn$Geography)[1] <- 0 ## France
+levels(churn$Geography)[2] <- 1 ## Germany
+levels(churn$Geography)[3] <- 2 ## Spain
+
+
+## Distribution of churns based on gender
+
+churn %>% 
+  group_by(Exited, Gender) %>% 
+      summarise(Number_of_Customers = n()) %>% 
+         ggplot(aes(Gender, Number_of_Customers)) +
+          geom_bar(aes(fill = Exited), stat = "identity", position = position_dodge()) + 
+           scale_x_discrete(labels = c("0" = "Female", "1" = "Male"))
+
+
+
+## Distribution of churns based on country
+
+
+churn %>% 
+  group_by(Exited, Geography) %>% 
+      summarise(Number_of_Customers = n()) %>% 
+         ggplot(aes(Geography, Number_of_Customers)) +
+          geom_bar(aes(fill = Exited), stat = "identity", position = position_dodge()) + 
+            scale_x_discrete(labels = c("0" = "France", "1" = "Germany", "2" = "Spain"))
+
+
+
+## Split data into train and test sets.
+
+train_index <- createDataPartition(churn$Exited, p = .80, list = FALSE, times = 1)
+
+train <- churn[train_index,]
+test <- churn[-train_index,]
+
+train_x <- train %>% select(-Exited)
+train_label <- as.numeric(train$Exited) - 1
+
+test_x <- test %>% select(-Exited)
+test_label <- as.numeric(test$Exited) - 1
+
+
+## Create sparse matrices for test and train sets.
+
+train_sparse <- sparse.model.matrix(Exited ~., data = train)[,-1]
+test_sparse <- sparse.model.matrix(Exited ~., data = test)[,-1]
+
+
+
+## Create a xgboost model
+
+xgbModel <- xgboost(data = train_sparse, 
+                    label = train_label,
+                    nrounds = 100,
+                    max_depth = 5,
+                    eta = 0.1,
+                    objective = "binary:logistic")
+
+## Make predictions on test data 
+
+predicted <- predict(xgbModel, test_sparse)
+
+predicted <- ifelse(predicted > 0.5 , 1,0)
+
+## Create confusion matrix
+
+confusionMatrix(table(predicted = predicted, actual = test_label))
+
+```
+
+
